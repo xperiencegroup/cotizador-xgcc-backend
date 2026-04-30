@@ -10,7 +10,7 @@ router.use(requireAuth);
 
 /** Llama a la función next_folio() de PostgreSQL (atómica con SEQUENCE) */
 async function generateFolio() {
-  const result = await prisma.$queryRaw`SELECT next_folio() AS folio`;
+  const result = await prisma.$queryRaw`SELECT cotizador_next_folio() AS folio`;
   return result[0].folio;
 }
 
