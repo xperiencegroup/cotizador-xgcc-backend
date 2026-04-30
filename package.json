@@ -7,8 +7,9 @@
   "engines": {
     "node": ">=18"
   },
-  "scripts": {
+  "scripts": {    
     "dev": "nodemon src/index.js",
+    "build": "prisma generate",
     "start": "node src/index.js",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
