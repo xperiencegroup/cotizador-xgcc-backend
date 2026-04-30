@@ -107,7 +107,7 @@ router.post('/', async (req, res) => {
         clienteId:           body.clienteId   || null,
         clienteSnapshot:     body.cliente     || body.clienteSnapshot || {},
         proyectoNombre:      body.proyecto?.nombre     || body.proyectoNombre || '',
-        proyectoTipo:        body.proyecto?.tipo       || body.proyectoTipo   || 'residencial_horizontal',
+        proyectoTipo: mapProyectoTipo(body.proyecto?.tipo || body.proyectoTipo || 'residencial-horizontal'),
         proyectoEstatus:     body.proyecto?.estatus    || body.proyectoEstatus || 'preventa',
         proyectoUbicacion:   body.proyecto?.ubicacion  || body.proyectoUbicacion || null,
         proyectoUnidades:    body.proyecto?.unidades   || body.proyectoUnidades  || null,
@@ -182,7 +182,7 @@ router.put('/:id', async (req, res) => {
         ...(body.cliente           && { clienteSnapshot: body.cliente }),
         ...(body.proyectoNombre    && { proyectoNombre: body.proyectoNombre }),
         ...(body.proyecto?.nombre  && { proyectoNombre: body.proyecto.nombre }),
-        ...(body.proyecto?.tipo    && { proyectoTipo: body.proyecto.tipo }),
+        ...(body.proyecto?.tipo && { proyectoTipo: mapProyectoTipo(body.proyecto.tipo) }),
         ...(body.proyecto?.estatus && { proyectoEstatus: body.proyecto.estatus }),
         ...(body.proyecto?.ubicacion  && { proyectoUbicacion: body.proyecto.ubicacion }),
         ...(body.proyecto?.unidades   && { proyectoUnidades: body.proyecto.unidades }),
@@ -305,6 +305,14 @@ function mapEsquemaPago(value) {
     'bimestral':    'bimestral',
     'por-avance':   'por_avance',
     'custom':       'custom',
+  };
+  return map[value] || value;
+}
+
+function mapProyectoTipo(value) {
+  const map = {
+    'residencial-horizontal': 'residencial_horizontal',
+    'residencial-vertical':   'residencial_vertical',
   };
   return map[value] || value;
 }
