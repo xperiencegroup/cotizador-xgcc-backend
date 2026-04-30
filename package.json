@@ -7,15 +7,16 @@
   "engines": {
     "node": ">=18"
   },
-  "scripts": {    
-    "dev": "nodemon src/index.js",
-    "build": "prisma generate",
-    "start": "node src/index.js",
-    "db:generate": "prisma generate",
-    "db:push": "prisma db push",
-    "db:migrate": "prisma migrate deploy",
-    "db:studio": "prisma studio"
-  },
+"scripts": {
+  "postinstall": "prisma generate",
+  "dev": "nodemon src/index.js",
+  "build": "prisma generate",
+  "start": "node src/index.js",
+  "db:generate": "prisma generate",
+  "db:push": "prisma db push",
+  "db:migrate": "prisma migrate deploy",
+  "db:studio": "prisma studio"
+},
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
     "@prisma/adapter-neon": "^7.8.0",
