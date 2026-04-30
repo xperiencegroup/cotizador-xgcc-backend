@@ -1,0 +1,363 @@
+// Prisma schema — Xperience Cotizador
+// Mapea el schema.sql PostgreSQL existente.
+// Convención: snake_case en BD, camelCase en el cliente Prisma.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ENUMS ────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  admin
+  comercial
+  operaciones
+  finanzas
+
+  @@map("cotizador_user_role")
+}
+
+enum ClienteSegmento {
+  desarrollador
+  broker
+  particular
+  agencia
+  corporativo
+  otro
+
+  @@map("cotizador_cliente_segmento")
+}
+
+enum Submarca {
+  group
+  realEstate
+  media
+
+  @@map("cotizador_submarca")
+}
+
+enum QuoteEstatus {
+  borrador
+  enviada
+  aceptada
+  rechazada
+  cancelada
+
+  @@map("cotizador_quote_estatus")
+}
+
+enum ProyectoTipo {
+  residencial_horizontal  @map("residencial-horizontal")
+  residencial_vertical    @map("residencial-vertical")
+  industrial
+  comercial
+  mixto
+  lotes
+  naves
+  corporativo
+
+  @@map("cotizador_proyecto_tipo")
+}
+
+enum ProyectoEstatus {
+  planeacion
+  preventa
+  construccion
+  terminado
+
+  @@map("cotizador_proyecto_estatus")
+}
+
+enum EsquemaPago {
+  doce_iguales      @map("12-iguales")
+  iguala_mayor      @map("iguala-mayor")
+  cuarenta_30_30    @map("40-30-30")
+  cincuenta_50      @map("50-50")
+  anticipo_12m      @map("anticipo-12m")
+  bimestral
+  por_avance        @map("por-avance")
+  custom
+
+  @@map("cotizador_esquema_pago")
+}
+
+enum CxFase {
+  fase1
+  fase2
+  fase3
+
+  @@map("cotizador_cx_fase")
+}
+
+enum QuoteEventType {
+  creada
+  actualizada
+  enviada
+  vista_publica
+  aceptada
+  rechazada
+  cancelada
+  descuento_aplicado
+  descuento_removido
+  producto_agregado
+  producto_removido
+  producto_configurado
+  comentario
+
+  @@map("cotizador_quote_event_type")
+}
+
+// ─── MODELOS ──────────────────────────────────────────────────────────────────
+
+model User {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // google_sub: identificador único de Google (reemplaza username+password_hash)
+  googleSub      String?   @unique @map("google_sub")
+  username       String    @unique @db.Citext
+  email          String    @unique @db.Citext
+  passwordHash   String?   @map("password_hash")
+  nombre         String
+  puesto         String?
+  iniciales      String?   @db.VarChar(4)
+  avatar         String?   // URL del avatar de Google
+  rol            UserRole  @default(comercial)
+  activo         Boolean   @default(true)
+  ultimoLoginAt  DateTime? @map("ultimo_login_at") @db.Timestamptz
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz
+
+  quotes         Quote[]
+  eventos        QuoteEvent[]
+  clientes       Cliente[]
+  discountCodes  DiscountCode[]
+
+  @@index([activo])
+  @@map("cotizador_users")
+}
+
+model Cliente {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre         String
+  puesto         String?
+  empresa        String
+  rfc            String?         @db.VarChar(13)
+  email          String?         @db.Citext
+  telefono       String?         @db.VarChar(20)
+  ciudad         String?
+  estado         String?
+  pais           String          @default("MX") @db.VarChar(2)
+  segmento       ClienteSegmento @default(desarrollador)
+  comoNosConoci  String?         @map("como_nos_conocio")
+  notas          String?
+  createdBy      String?         @map("created_by") @db.Uuid
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt      DateTime?       @map("deleted_at") @db.Timestamptz
+
+  user           User?           @relation(fields: [createdBy], references: [id])
+  quotes         Quote[]
+
+  @@index([empresa])
+  @@index([email])
+  @@map("cotizador_clientes")
+}
+
+model Producto {
+  id           String    @id @db.VarChar(50)
+  nombre       String
+  descripcion  String?
+  submarca     Submarca
+  icon         String?   @db.VarChar(50)
+  orden        Int       @default(99)
+  activo       Boolean   @default(true)
+  precioFijo   Decimal?  @map("precio_fijo") @db.Decimal(12, 2)
+  configSchema Json?     @map("config_schema")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  variantes    ProductoVariante[]
+  addons       ProductoAddon[]
+  quoteItems   QuoteProducto[]
+
+  @@map("cotizador_productos")
+}
+
+model ProductoVariante {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productoId  String   @map("producto_id") @db.VarChar(50)
+  varianteId  String   @map("variante_id") @db.VarChar(50)
+  label       String
+  precio      Decimal  @db.Decimal(12, 2)
+  periodo     String?  @db.VarChar(20)
+  orden       Int      @default(0)
+  activo      Boolean  @default(true)
+
+  producto    Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+
+  @@unique([productoId, varianteId])
+  @@map("cotizador_producto_variantes")
+}
+
+model ProductoAddon {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productoId  String   @map("producto_id") @db.VarChar(50)
+  addonId     String   @map("addon_id") @db.VarChar(50)
+  label       String
+  precio      Decimal  @db.Decimal(12, 2)
+  activo      Boolean  @default(true)
+
+  producto    Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+
+  @@unique([productoId, addonId])
+  @@map("cotizador_producto_addons")
+}
+
+model CxNivel {
+  id        String   @id @db.VarChar(20)
+  nombre    String
+  totalRef  Decimal  @map("total_ref") @db.Decimal(12, 2)
+  orden     Int      @default(0)
+  activo    Boolean  @default(true)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  items     CxNivelItem[]
+
+  @@map("cotizador_cx_niveles")
+}
+
+model CxNivelItem {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nivelId  String  @map("nivel_id") @db.VarChar(20)
+  fase     CxFase
+  itemId   String  @map("item_id") @db.VarChar(50)
+  label    String
+  precio   Decimal @db.Decimal(12, 2)
+  orden    Int     @default(0)
+
+  nivel    CxNivel @relation(fields: [nivelId], references: [id], onDelete: Cascade)
+
+  @@unique([nivelId, fase, itemId])
+  @@index([nivelId, fase, orden])
+  @@map("cotizador_cx_nivel_items")
+}
+
+model DiscountCode {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  codigo        String    @unique @db.VarChar(50)
+  nombre        String
+  descripcion   String?
+  descuentoPct  Decimal   @map("descuento_pct") @db.Decimal(5, 2)
+  activo        Boolean   @default(true)
+  validoDesde   DateTime? @map("valido_desde") @db.Timestamptz
+  validoHasta   DateTime? @map("valido_hasta") @db.Timestamptz
+  maxUsos       Int?      @map("max_usos")
+  usosActuales  Int       @default(0) @map("usos_actuales")
+  createdBy     String?   @map("created_by") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz
+
+  user          User?     @relation(fields: [createdBy], references: [id])
+
+  @@map("cotizador_discount_codes")
+}
+
+model Quote {
+  id                    String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  folio                 String          @unique @db.VarChar(20)
+  estatus               QuoteEstatus    @default(borrador)
+  clienteId             String?         @map("cliente_id") @db.Uuid
+  clienteSnapshot       Json            @map("cliente_snapshot")
+  proyectoNombre        String          @map("proyecto_nombre")
+  proyectoTipo          ProyectoTipo    @default(residencial_horizontal) @map("proyecto_tipo")
+  proyectoEstatus       ProyectoEstatus @default(preventa) @map("proyecto_estatus")
+  proyectoUbicacion     String?         @map("proyecto_ubicacion")
+  proyectoUnidades      String?         @map("proyecto_unidades")
+  proyectoSuperficie    String?         @map("proyecto_superficie")
+  proyectoDescripcion   String?         @map("proyecto_descripcion")
+  proyectoMateriales    Json            @default("{}") @map("proyecto_materiales")
+  submarca              Submarca        @default(group)
+  submarcaManual        Boolean         @default(false) @map("submarca_manual")
+  esquemaPago           EsquemaPago     @default(doce_iguales) @map("esquema_pago")
+  notasPago             String?         @map("notas_pago")
+  licenciaPrepagada     Boolean         @default(false) @map("licencia_prepagada")
+  licenciaPrepagadaPrecio Decimal       @default(20000) @map("licencia_prepagada_precio") @db.Decimal(12, 2)
+  bundleAplicado        Boolean         @default(false) @map("bundle_aplicado")
+  bundlePct             Decimal         @default(10) @map("bundle_pct") @db.Decimal(5, 2)
+  elementosPrevios      Boolean         @default(false) @map("elementos_previos")
+  elementosPreviosPct   Decimal         @default(5) @map("elementos_previos_pct") @db.Decimal(5, 2)
+  subtotal              Decimal         @default(0) @db.Decimal(12, 2)
+  descuentoPct          Decimal         @default(0) @map("descuento_pct") @db.Decimal(5, 2)
+  descuentoTotal        Decimal         @default(0) @map("descuento_total") @db.Decimal(12, 2)
+  ajusteManual          Decimal         @default(0) @map("ajuste_manual") @db.Decimal(12, 2)
+  total                 Decimal         @default(0) @db.Decimal(12, 2)
+  moneda                String          @default("MXN") @db.VarChar(3)
+  publicToken           String?         @unique @map("public_token") @db.VarChar(64)
+  publicTokenExpiresAt  DateTime?       @map("public_token_expires_at") @db.Timestamptz
+  aceptadaPorNombre     String?         @map("aceptada_por_nombre")
+  aceptadaAt            DateTime?       @map("aceptada_at") @db.Timestamptz
+  aceptadaIp            String?         @map("aceptada_ip")
+  tratoDocumentoId      String?         @map("trato_documento_id")
+  tratoEstado           String?         @map("trato_estado")
+  creadoPor             String          @map("creado_por") @db.Uuid
+  enviadaAt             DateTime?       @map("enviada_at") @db.Timestamptz
+  enviadaAEmails        String[]        @map("enviada_a_emails")
+  fechaCreacion         DateTime        @default(now()) @map("fecha_creacion") @db.Timestamptz
+  fechaActualizacion    DateTime        @default(now()) @map("fecha_actualizacion") @db.Timestamptz
+  deletedAt             DateTime?       @map("deleted_at") @db.Timestamptz
+
+  cliente               Cliente?        @relation(fields: [clienteId], references: [id])
+  creador               User            @relation(fields: [creadoPor], references: [id])
+  productos             QuoteProducto[]
+  eventos               QuoteEvent[]
+
+  @@index([estatus])
+  @@index([clienteId])
+  @@index([creadoPor])
+  @@index([fechaCreacion(sort: Desc)])
+  @@index([publicToken])
+  @@map("cotizador_quotes")
+}
+
+model QuoteProducto {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quoteId          String   @map("quote_id") @db.Uuid
+  productoId       String   @map("producto_id") @db.VarChar(50)
+  nombreSnapshot   String   @map("nombre_snapshot")
+  configSnapshot   Json     @default("{}") @map("config_snapshot")
+  precioCalculado  Decimal  @default(0) @map("precio_calculado") @db.Decimal(12, 2)
+  precioFinal      Decimal  @default(0) @map("precio_final") @db.Decimal(12, 2)
+  configurado      Boolean  @default(false)
+  orden            Int      @default(0)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  quote            Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  producto         Producto @relation(fields: [productoId], references: [id])
+
+  @@unique([quoteId, productoId])
+  @@index([quoteId])
+  @@map("cotizador_quote_productos")
+}
+
+model QuoteEvent {
+  id         String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quoteId    String         @map("quote_id") @db.Uuid
+  eventType  QuoteEventType @map("event_type")
+  userId     String?        @map("user_id") @db.Uuid
+  metadata   Json?
+  ipAddress  String?        @map("ip_address")
+  userAgent  String?        @map("user_agent")
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz
+
+  quote      Quote          @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  user       User?          @relation(fields: [userId], references: [id])
+
+  @@index([quoteId, createdAt(sort: Desc)])
+  @@map("cotizador_quote_events")
+}
